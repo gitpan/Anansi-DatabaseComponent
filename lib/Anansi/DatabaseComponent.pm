@@ -64,7 +64,7 @@ L<Anansi::Component> and L<base>.
 =cut
 
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 use base qw(Anansi::Component);
 
@@ -1257,16 +1257,24 @@ Named parameters.
 
 =item DRIVER I<(String, Optional)>
 
-Either the namespace of a database driver or the name of a database driver.
+Either the namespace of a database driver or the name of a database driver that
+should be used.
+
+=item DRIVERS I<(Array B<or> String, Optional)>
+
+An array of strings or a single string containing either the namespace of a
+valid database driver or the name of a database driver that should be looked for
+among the installed modules.
 
 =back
 
 =back
 
 Generic validation for whether a database should be handled by a component.  If
-the driver name is supplied then an attempt will be made to use that driver
-otherwise a generic driver will be tried.  Returns B<1> I<(one)> for yes and
-B<0> I<(zero)> for no.
+the driver name is supplied then an attempt will be made to use that driver as
+long as it matches any of the acceptable B<DRIVERS>, otherwise one of the
+acceptable B<DRIVERS> will be tried or a generic driver if none have been
+supplied.  Returns B<1> I<(one)> for valid and B<0> I<(zero)> for invalid.
 
 =cut
 
@@ -1278,8 +1286,49 @@ sub validate {
     my %modules = Anansi::Actor->modules();
     return 0 if(!defined($modules{'Bundle::DBI'}));
     if(!defined($parameters{DRIVER})) {
-        return 0 if(!defined($modules{'Bundle::DBD'}));
+        if(defined($parameters{DRIVERS})) {
+            $parameters{DRIVERS} = [( $parameters{DRIVERS} )] if(ref($parameters{DRIVERS}) =~ /^$/);
+            return 0 if(ref($parameters{DRIVERS}) !~ /^ARRAY$/i);
+            my %reduced = map { lc($_) => $modules{$_} } (keys(%modules));
+            foreach my $DRIVER (@{$parameters{DRIVERS}}) {
+                return 0 if(ref($DRIVER) !~ /^$/);
+                return 1 if(defined($modules{$DRIVER}));
+                return 1 if(defined($modules{'Bundle::DBD::'.$DRIVER}));
+                return 1 if(defined($reduced{lc($DRIVER)}));
+                return 1 if(defined($reduced{lc('Bundle::DBD::'.$DRIVER)}));
+            }
+            return 0;
+        } elsif(!defined($modules{'Bundle::DBD'})) {
+            return 0;
+        }
     } elsif(ref($parameters{DRIVER}) !~ /^$/) {
+        return 0;
+    } elsif(defined($parameters{DRIVERS})) {
+        $parameters{DRIVERS} = [( $parameters{DRIVERS} )] if(ref($parameters{DRIVERS}) =~ /^$/);
+        return 0 if(ref($parameters{DRIVERS}) !~ /^ARRAY$/i);
+        my %DRIVERS;
+        $DRIVERS{$parameters{DRIVER}} = 1;
+        $DRIVERS{'Bundle::DBD::'.$parameters{DRIVER}} = 1;
+        $DRIVERS{lc($parameters{DRIVER})} = 1;
+        $DRIVERS{lc('Bundle::DBD::'.$parameters{DRIVER})} = 1;
+        my $found = 0;
+        foreach my $DRIVER (@{$parameters{DRIVERS}}) {
+            return 0 if(ref($DRIVER) !~ /^$/);
+            $found = 1;
+            last if(defined($DRIVERS{$DRIVER}));
+            last if(defined($DRIVERS{'Bundle::DBD::'.$DRIVER}));
+            last if(defined($DRIVERS{lc($DRIVER)}));
+            last if(defined($DRIVERS{lc('Bundle::DBD::'.$DRIVER)}));
+            $found = 0;
+        }
+        return 0 if(!$found);
+        my %reduced = map { lc($_) => $modules{$_} } (keys(%modules));
+        foreach my $DRIVER (@{$parameters{DRIVERS}}) {
+            return 1 if(defined($modules{$DRIVER}));
+            return 1 if(defined($modules{'Bundle::DBD::'.$DRIVER}));
+            return 1 if(defined($reduced{lc($DRIVER)}));
+            return 1 if(defined($reduced{lc('Bundle::DBD::'.$DRIVER)}));
+        }
         return 0;
     } elsif(defined($modules{$parameters{DRIVER}})) {
     } elsif(!defined($modules{'Bundle::DBD::'.$parameters{DRIVER}})) {

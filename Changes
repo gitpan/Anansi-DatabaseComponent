@@ -3,4 +3,5 @@ Revision history for Perl extension Anansi::DatabaseComponent.
 0.01  Fri May 24 11:37:16 2013
 	- original version; created by h2xs 1.23 with options
 		-AX Anansi::DatabaseComponent
-
+0.02  Wed Jun 05 10:07:02 2013
+	- modified "validate" to use the "DRIVERS" parameter.

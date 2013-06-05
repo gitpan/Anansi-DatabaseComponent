@@ -64,7 +64,7 @@ L<Anansi::Component> and L<base>.
 =cut
 
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 use base qw(Anansi::Component);
 
@@ -1227,7 +1227,7 @@ Anansi::Component::addChannel('Anansi::DatabaseComponent', 'STATEMENT' => 'state
 
     if(1 == Anansi::DatabaseComponent::channel($OBJECT, 'VALIDATE_AS_APPROPRIATE'));
 
-    if(1 == Anansi::DatabaseComponent->validate(undef));
+    if(1 == Anansi::DatabaseComponent->validate(undef, DRIVERS => ['some::driver::module', 'anotherDriver']));
 
     if(1 == Anansi::DatabaseComponent->channel('VALIDATE_AS_APPROPRIATE'));
 
@@ -1235,7 +1235,7 @@ Anansi::Component::addChannel('Anansi::DatabaseComponent', 'STATEMENT' => 'state
 
     if(1 == $OBJECT->channel('VALIDATE_AS_APPROPRIATE', DRIVER => 'Example'));
 
-    if(1 == Anansi::DatabaseComponent->validate(undef, DRIVER => 'Example'));
+    if(1 == Anansi::DatabaseComponent->validate(undef, DRIVER => 'Example', DRIVERS => 'some::driver'));
 
     if(1 == Anansi::DatabaseComponent->channel('VALIDATE_AS_APPROPRIATE', DRIVER => 'Example'));
 
@@ -1293,8 +1293,10 @@ sub validate {
             foreach my $DRIVER (@{$parameters{DRIVERS}}) {
                 return 0 if(ref($DRIVER) !~ /^$/);
                 return 1 if(defined($modules{$DRIVER}));
+                return 1 if(defined($modules{'DBD::'.$DRIVER}));
                 return 1 if(defined($modules{'Bundle::DBD::'.$DRIVER}));
                 return 1 if(defined($reduced{lc($DRIVER)}));
+                return 1 if(defined($reduced{lc('DBD::'.$DRIVER)}));
                 return 1 if(defined($reduced{lc('Bundle::DBD::'.$DRIVER)}));
             }
             return 0;
@@ -1308,16 +1310,20 @@ sub validate {
         return 0 if(ref($parameters{DRIVERS}) !~ /^ARRAY$/i);
         my %DRIVERS;
         $DRIVERS{$parameters{DRIVER}} = 1;
+        $DRIVERS{'DBD::'.$parameters{DRIVER}} = 1;
         $DRIVERS{'Bundle::DBD::'.$parameters{DRIVER}} = 1;
         $DRIVERS{lc($parameters{DRIVER})} = 1;
+        $DRIVERS{lc('DBD::'.$parameters{DRIVER})} = 1;
         $DRIVERS{lc('Bundle::DBD::'.$parameters{DRIVER})} = 1;
         my $found = 0;
         foreach my $DRIVER (@{$parameters{DRIVERS}}) {
             return 0 if(ref($DRIVER) !~ /^$/);
             $found = 1;
             last if(defined($DRIVERS{$DRIVER}));
+            last if(defined($DRIVERS{'DBD::'.$DRIVER}));
             last if(defined($DRIVERS{'Bundle::DBD::'.$DRIVER}));
             last if(defined($DRIVERS{lc($DRIVER)}));
+            last if(defined($DRIVERS{lc('DBD::'.$DRIVER)}));
             last if(defined($DRIVERS{lc('Bundle::DBD::'.$DRIVER)}));
             $found = 0;
         }
@@ -1325,15 +1331,19 @@ sub validate {
         my %reduced = map { lc($_) => $modules{$_} } (keys(%modules));
         foreach my $DRIVER (@{$parameters{DRIVERS}}) {
             return 1 if(defined($modules{$DRIVER}));
+            return 1 if(defined($modules{'DBD::'.$DRIVER}));
             return 1 if(defined($modules{'Bundle::DBD::'.$DRIVER}));
             return 1 if(defined($reduced{lc($DRIVER)}));
+            return 1 if(defined($reduced{lc('DBD::'.$DRIVER)}));
             return 1 if(defined($reduced{lc('Bundle::DBD::'.$DRIVER)}));
         }
         return 0;
     } elsif(defined($modules{$parameters{DRIVER}})) {
+    } elsif(defined($modules{'DBD::'.$parameters{DRIVER}})) {
     } elsif(!defined($modules{'Bundle::DBD::'.$parameters{DRIVER}})) {
         my %reduced = map { lc($_) => $modules{$_} } (keys(%modules));
         if(defined($reduced{lc($parameters{DRIVER})})) {
+        } elsif(defined($reduced{lc('DBD::'.$parameters{DRIVER})})) {
         } elsif(!defined($reduced{lc('Bundle::DBD::'.$parameters{DRIVER})})) {
             return 0;
         }
